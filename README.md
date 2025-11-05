@@ -1,10 +1,10 @@
-# 🎬🎧📅 iOSApp5  
+# 🎬🎧📅 Media Planner App  
 **A combined educational iOS project — Multimedia Player + Date Planner**
 
 ---
 
 ## 🧩 Overview  
-**iOSApp5** merges features from two SwiftUI projects:
+**Media Planner App** merges features from two SwiftUI projects:
 - 🎵 *MediaPlayerApp*: Audio & Video playback using AVFoundation  
 - 📅 *DatePickerDemo*: Interactive date/time scheduling  
 
