@@ -5,69 +5,107 @@ struct AudioListView: View {
     @ObservedObject private var planner = PlannerModel.shared
 
     var body: some View {
-        VStack {
-            if loader.audioFiles.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "music.quarternote.3")
-                        .font(.system(size: 50))
-                        .foregroundColor(.gray.opacity(0.7))
-                    Text("No audio files found 🎧")
-                        .font(.headline)
-                        .foregroundColor(.gray)
-                    Text("Make sure your .mp3 or .wav files are inside the Media folder\nand added to your app target.")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding(.top, 60)
-            } else {
-                List(loader.audioFiles) { audio in
-                    NavigationLink(destination: AudioPlayerView(fileName: audio.fileName)) {
-                        HStack(spacing: 12) {
-                            // 🎵 Миниатюра или иконка
-                            if let thumb = audio.thumbnail {
-                                Image(uiImage: thumb)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 60, height: 60)
-                                    .cornerRadius(10)
-                                    .shadow(color: .pink.opacity(0.3), radius: 4)
-                            } else {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.blue.opacity(0.15))
-                                    Image(systemName: "music.note")
-                                        .font(.system(size: 28))
-                                        .foregroundColor(.blue)
-                                }
-                                .frame(width: 60, height: 60)
-                            }
-
-                            // 🎧 Информация
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(audio.name)
-                                    .font(.headline)
-                                Text(audio.duration)
-                                    .font(.subheadline)
+        List(loader.audioFiles) { audio in
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 12) {
+                    // 🎵 Миниатюра
+                    if let thumb = audio.thumbnail {
+                        Image(uiImage: thumb)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 60)
+                            .cornerRadius(10)
+                            .clipped()
+                            .shadow(color: .pink.opacity(0.4), radius: 4)
+                    } else {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(width: 80, height: 60)
+                            .overlay(
+                                Image(systemName: "music.note.list")
+                                    .font(.title)
                                     .foregroundColor(.gray)
-                                if let reminder = planner.allReminders.first(where: { $0.mediaName == audio.fileName }) {
-                                    Text("🔔 Reminder: \(planner.formatDate(reminder.date))")
+                            )
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(audio.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        Text(audio.duration)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+
+                        // 🕒 Будущее напоминание
+                        if let reminder = planner.allReminders.first(where: {
+                            $0.mediaName == audio.fileName && $0.mediaType == "audio"
+                        }) {
+                            if reminder.date > Date() {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "bell.badge.fill")
+                                        .foregroundColor(.pink)
+                                    Text(planner.formatDate(reminder.date))
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
                             }
                         }
-                        .padding(.vertical, 6)
+                    }
+                    Spacer()
+                }
+
+                // 🟣 Кнопка добавления напоминания
+                if planner.allReminders.first(where: {
+                    $0.mediaName == audio.fileName && $0.mediaType == "audio"
+                }) == nil {
+                    Button {
+                        planner.selectedMediaName = audio.fileName
+                        planner.mediaType = "audio"
+                        planner.selectedDate = Date().addingTimeInterval(60 * 10) // +10 минут
+                        planner.addReminder(date: planner.selectedDate, type: "audio", name: audio.fileName)
+                    } label: {
+                        Text("+ Add Reminder")
+                            .font(.caption)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.pink.opacity(0.15))
+                            .foregroundColor(.pink)
+                            .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    HStack(spacing: 10) {
+                        Button("Update") {
+                            planner.selectedMediaName = audio.fileName
+                            planner.mediaType = "audio"
+                            planner.selectedDate = Date().addingTimeInterval(60 * 15) // переносим на 15 мин
+                        }
+                        .font(.caption)
+                        .padding(6)
+                        .background(Color.blue.opacity(0.15))
+                        .foregroundColor(.blue)
+                        .cornerRadius(8)
+
+                        Button("Delete") {
+                            planner.allReminders.removeAll {
+                                $0.mediaName == audio.fileName && $0.mediaType == "audio"
+                            }
+                        }
+                        .font(.caption)
+                        .padding(6)
+                        .background(Color.red.opacity(0.15))
+                        .foregroundColor(.red)
+                        .cornerRadius(8)
                     }
                 }
-                .listStyle(.plain)
             }
+            .padding(.vertical, 6)
+            .listRowBackground(Color.white.opacity(0.95))
         }
+        .listStyle(.plain)
         .navigationTitle("🎵 Audio Files")
-        .onAppear {
-            loader.loadAudioFiles()
-        }
+        .onAppear { loader.loadAudioFiles() }
     }
 }
 

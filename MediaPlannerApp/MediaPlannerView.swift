@@ -199,38 +199,82 @@ struct MediaPlannerView: View {
     }
 
     private var remindersList: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("📋 Your Bookings")
-                .font(.headline)
+                .font(.title3.bold())
+                .foregroundStyle(.linearGradient(colors: [.pink, .purple], startPoint: .leading, endPoint: .trailing))
+                .padding(.bottom, 5)
 
             if sortedReminders.isEmpty {
                 Text("No reminders yet.")
                     .foregroundColor(.gray)
                     .italic()
             } else {
-                ForEach(sortedReminders) { reminder in
-                    HStack {
-                        Image(systemName: reminder.mediaType == "video" ? "film" : "music.note")
-                            .foregroundColor(reminder.mediaType == "video" ? .purple : .blue)
-                        VStack(alignment: .leading) {
-                            Text(reminder.mediaName)
-                                .font(.headline)
-                            Text(planner.formatDate(reminder.date))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                LazyVStack(spacing: 12) {
+                    ForEach(sortedReminders) { reminder in
+                        HStack(spacing: 12) {
+                            // 🎞 Миниатюра или иконка
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: reminder.mediaType == "video"
+                                                ? [.purple.opacity(0.6), .blue.opacity(0.6)]
+                                                : [.pink.opacity(0.7), .orange.opacity(0.7)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 65, height: 65)
+                                    .shadow(color: .white.opacity(0.2), radius: 6, x: 0, y: 2)
+
+                                Image(systemName: reminder.mediaType == "video" ? "film.fill" : "music.note.list")
+                                    .font(.system(size: 26, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(reminder.mediaName)
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+
+                                Text(planner.formatDate(reminder.date))
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            Spacer()
+
+                            // ▶️ Кнопка воспроизведения
+                            Button(action: { playMedia(reminder) }) {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.linearGradient(colors: [.pink, .purple], startPoint: .top, endPoint: .bottom))
+                                    .shadow(color: .pink.opacity(0.6), radius: 5)
+                            }
                         }
-                        Spacer()
-                        Button(action: { playMedia(reminder) }) {
-                            Image(systemName: "play.circle.fill")
-                                .foregroundColor(.accentColor)
-                                .font(.title3)
-                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.black.opacity(0.3))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18)
+                                        .stroke(
+                                            LinearGradient(colors: [.pink.opacity(0.6), .purple.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                            lineWidth: 1.5
+                                        )
+                                )
+                                .shadow(color: .purple.opacity(0.4), radius: 8, x: 0, y: 3)
+                        )
+                        .padding(.horizontal, 5)
                     }
                 }
             }
         }
         .padding(.horizontal)
+        .padding(.bottom, 15)
     }
+
 
     // MARK: - Helpers
     private func requestPermission() {
@@ -248,6 +292,18 @@ struct MediaPlannerView: View {
             return
         }
 
+        // 🧩 Проверка на дубликаты
+        if planner.allReminders.contains(where: {
+            $0.mediaName == name &&
+            $0.mediaType == type &&
+            abs($0.date.timeIntervalSince(planner.selectedDate)) < 1 // то же время (с точностью до секунды)
+        }) {
+            alertMessage = "⚠️ Reminder for \(name) at this time already exists!"
+            showAlert = true
+            return
+        }
+
+        // 🕑 Создание уведомления
         let content = UNMutableNotificationContent()
         content.title = "🎬 Media Reminder"
         content.body = "It's time for your \(type): \(name)"
@@ -277,6 +333,7 @@ struct MediaPlannerView: View {
             }
         }
     }
+
 
     private func playMedia(_ reminder: Reminder) {
         print("▶ Playing \(reminder.mediaName)")
