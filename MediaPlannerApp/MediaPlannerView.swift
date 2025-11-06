@@ -202,7 +202,9 @@ struct MediaPlannerView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("📋 Your Bookings")
                 .font(.title3.bold())
-                .foregroundStyle(.linearGradient(colors: [.pink, .purple], startPoint: .leading, endPoint: .trailing))
+                .foregroundStyle(.linearGradient(colors: [.pink, .purple],
+                                                 startPoint: .leading,
+                                                 endPoint: .trailing))
                 .padding(.bottom, 5)
 
             if sortedReminders.isEmpty {
@@ -210,7 +212,8 @@ struct MediaPlannerView: View {
                     .foregroundColor(.gray)
                     .italic()
             } else {
-                LazyVStack(spacing: 12) {
+                // ✅ Используем List с onDelete
+                List {
                     ForEach(sortedReminders) { reminder in
                         HStack(spacing: 12) {
                             // 🎞 Миниатюра или иконка
@@ -243,13 +246,16 @@ struct MediaPlannerView: View {
                                     .font(.caption)
                                     .foregroundColor(.white.opacity(0.8))
                             }
+
                             Spacer()
 
                             // ▶️ Кнопка воспроизведения
                             Button(action: { playMedia(reminder) }) {
                                 Image(systemName: "play.circle.fill")
                                     .font(.title2)
-                                    .foregroundStyle(.linearGradient(colors: [.pink, .purple], startPoint: .top, endPoint: .bottom))
+                                    .foregroundStyle(.linearGradient(colors: [.pink, .purple],
+                                                                     startPoint: .top,
+                                                                     endPoint: .bottom))
                                     .shadow(color: .pink.opacity(0.6), radius: 5)
                             }
                         }
@@ -260,20 +266,35 @@ struct MediaPlannerView: View {
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 18)
                                         .stroke(
-                                            LinearGradient(colors: [.pink.opacity(0.6), .purple.opacity(0.5)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                            LinearGradient(colors: [.pink.opacity(0.6), .purple.opacity(0.5)],
+                                                           startPoint: .topLeading,
+                                                           endPoint: .bottomTrailing),
                                             lineWidth: 1.5
                                         )
                                 )
                                 .shadow(color: .purple.opacity(0.4), radius: 8, x: 0, y: 3)
                         )
-                        .padding(.horizontal, 5)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
+                    .onDelete(perform: deleteReminder) // 👈 свайп для удаления
                 }
+                .listStyle(.plain)
+                .frame(height: CGFloat(sortedReminders.count) * 90)
             }
         }
         .padding(.horizontal)
         .padding(.bottom, 15)
     }
+    
+    private func deleteReminder(at offsets: IndexSet) {
+        for index in offsets {
+            let reminder = sortedReminders[index]
+            planner.allReminders.removeAll { $0.id == reminder.id }
+        }
+    }
+
+
 
 
     // MARK: - Helpers
