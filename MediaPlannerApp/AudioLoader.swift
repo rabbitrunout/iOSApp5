@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import UIKit
 import Combine
 
 @MainActor
@@ -14,48 +15,64 @@ class AudioLoader: ObservableObject {
             }
 
             let fileManager = FileManager.default
-            do {
-                // Проверяем файлы в корне и в папке Media
-                var found: [String] = []
+            var found: [String] = []
 
-                let rootItems = try fileManager.contentsOfDirectory(atPath: resourcePath)
-                found.append(contentsOf: rootItems.filter { $0.hasSuffix(".mp3") || $0.hasSuffix(".wav") })
+            // 1️⃣ Ищем в Media/
+            let mediaPath = resourcePath + "/Media"
+            if let mediaItems = try? fileManager.contentsOfDirectory(atPath: mediaPath) {
+                let mediaAudios = mediaItems.filter { $0.hasSuffix(".mp3") || $0.hasSuffix(".wav") }
+                print("🎧 Found in Media/:", mediaAudios)
+                found.append(contentsOf: mediaAudios.map { "Media/" + $0 })
+            } else {
+                print("⚠️ Media folder not found at:", mediaPath)
+            }
 
-                let mediaPath = resourcePath + "/Media"
-                if let mediaItems = try? fileManager.contentsOfDirectory(atPath: mediaPath) {
-                    found.append(contentsOf: mediaItems.filter { $0.hasSuffix(".mp3") || $0.hasSuffix(".wav") })
+            // 2️⃣ Ищем в корне (на случай, если Media не скопирована)
+            if let rootItems = try? fileManager.contentsOfDirectory(atPath: resourcePath) {
+                let rootAudios = rootItems.filter { $0.hasSuffix(".mp3") || $0.hasSuffix(".wav") }
+                print("🎶 Found in root:", rootAudios)
+                found.append(contentsOf: rootAudios)
+            }
+
+            if found.isEmpty {
+                print("❌ No audio files found in bundle!")
+                return
+            }
+
+            // ✅ 3️⃣ Сортировка по числовому порядку
+            let sorted = found.sorted { a, b in
+                let nameA = (a as NSString).lastPathComponent
+                let nameB = (b as NSString).lastPathComponent
+                let numA = Int(nameA.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
+                let numB = Int(nameB.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()) ?? 0
+                if numA == numB {
+                    return nameA < nameB
+                } else {
+                    return numA < numB
                 }
+            }
 
-                print("🎶 Found audio files:", found)
-                if found.isEmpty {
-                    print("⚠️ No audio files found")
-                    return
-                }
+            // 4️⃣ Загружаем длительность и миниатюры
+            var loaded: [Audio] = []
+            for path in sorted {
+                let url = URL(fileURLWithPath: resourcePath + "/" + path)
+                async let duration = getAudioDuration(for: url)
+                async let thumb = getAudioThumbnail(for: url)
+                let name = (path as NSString).lastPathComponent.replacingOccurrences(of: ".mp3", with: "")
+                loaded.append(Audio(name: name,
+                                    fileName: path,
+                                    duration: await duration,
+                                    thumbnail: await thumb))
+            }
 
-                var loaded: [Audio] = []
-                for file in found {
-                    let url: URL
-                    if FileManager.default.fileExists(atPath: resourcePath + "/Media/\(file)") {
-                        url = URL(fileURLWithPath: resourcePath + "/Media/\(file)")
-                    } else {
-                        url = URL(fileURLWithPath: resourcePath + "/\(file)")
-                    }
-
-                    async let duration = getAudioDuration(for: url)
-                    let name = (file as NSString).deletingPathExtension
-
-                    loaded.append(Audio(name: name, fileName: file, duration: await duration))
-                }
-
+            await MainActor.run {
                 self.audioFiles = loaded
-                print("✅ Loaded \(loaded.count) audio tracks")
-
-            } catch {
-                print("❌ Error loading audio files: \(error)")
+                print("✅ Loaded \(loaded.count) audio files: \(loaded.map(\.fileName))")
             }
         }
     }
 
+    // MARK: - Duration
     private func getAudioDuration(for url: URL) async -> String {
         let asset = AVURLAsset(url: url)
         do {
@@ -65,5 +82,42 @@ class AudioLoader: ObservableObject {
         } catch {
             return "--:--"
         }
+    }
+
+    // MARK: - Thumbnail
+    private func getAudioThumbnail(for url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
+        do {
+            let metadata = try await asset.load(.commonMetadata)
+            if let artworkItem = metadata.first(where: { $0.commonKey?.rawValue == "artwork" }) {
+                let value = try await artworkItem.load(.value)
+                if let data = value as? Data, let image = UIImage(data: data) {
+                    return image
+                }
+            }
+        } catch {
+            print("⚠️ Failed to load audio metadata: \(error)")
+        }
+
+        // 🎨 Если нет обложки — создаём дефолтную
+        let colors: [UIColor] = [.systemPink, .systemBlue, .systemPurple, .systemTeal]
+        let randomColor = colors.randomElement() ?? .systemGray
+        return createPlaceholderImage(color: randomColor)
+    }
+
+    // MARK: - Placeholder
+    private func createPlaceholderImage(color: UIColor) -> UIImage {
+        let size = CGSize(width: 200, height: 200)
+        UIGraphicsBeginImageContextWithOptions(size, false, 0)
+        color.setFill()
+        UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 20).fill()
+
+        let note = UIImage(systemName: "music.note.list")!
+        note.withTintColor(.white, renderingMode: .alwaysOriginal)
+            .draw(in: CGRect(x: 60, y: 60, width: 80, height: 80))
+
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return image ?? UIImage()
     }
 }
